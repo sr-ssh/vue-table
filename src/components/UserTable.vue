@@ -7,16 +7,16 @@
           <th>User ID</th>
           <th @click="sortBy('name')">
             <div class="th-icon">
-              Name <AscSortIcon v-if="sortKey === 'name' && sortOrder === 1" /><DescSortIcon
-                v-if="sortKey === 'name' && sortOrder === -1"
+              Name <AscSortIcon v-if="getSortOrder('name') === 1" /><DescSortIcon
+                v-if="getSortOrder('name') === -1"
               />
             </div>
           </th>
           <th @click="sortBy('date')">
             <div class="th-icon">
-              Date of Registration<AscSortIcon
-                v-if="sortKey === 'date' && sortOrder === 1"
-              /><DescSortIcon v-if="sortKey === 'date' && sortOrder === -1" />
+              Date of Registration<AscSortIcon v-if="getSortOrder('date') === 1" /><DescSortIcon
+                v-if="getSortOrder('date') === -1"
+              />
             </div>
           </th>
           <th>Address</th>
@@ -47,10 +47,12 @@ const filters = ref({
   phone: '',
   address: ''
 })
-const sortKey = ref<keyof UserType | ''>('')
-const sortOrder = ref<number>(1) // 1 for ascending, -1 for descending
+// const sortKey = ref<keyof UserType | ''>('')
+// const sortOrder = ref<number>(1) // 1 for ascending, -1 for descending
 const currentPage = ref<number>(1)
 const itemsPerPage = ref<number>(10)
+const sortKeys = ref<(keyof UserType)[]>([])
+const sortOrders = ref<number[]>([]) // 1 for ascending, -1 for descending
 
 const fetchUserData = async () => {
   try {
@@ -73,13 +75,17 @@ const filteredUsers = computed(() => {
 })
 
 const sortedUsers = computed(() => {
-  return filteredUsers.value.slice().sort((a, b) => {
-    if (sortKey.value) {
-      let result = a[sortKey.value] > b[sortKey.value] ? 1 : -1
-      return result * sortOrder.value
+  let sortedArr = [...filteredUsers.value]
+  if (sortKeys.value.length) {
+    for (let i = 0; i < sortKeys.value.length; i++) {
+      sortedArr = sortedArr.slice().sort((a, b) => {
+        const sortKey = sortKeys.value[i]
+        let result = a[sortKey] > b[sortKey] ? 1 : a[sortKey] < b[sortKey] ? -1 : 0
+        return result * sortOrders.value[i]
+      })
     }
-    return 0
-  })
+  }
+  return sortedArr
 })
 
 const paginatedUsers = computed(() => {
@@ -89,13 +95,23 @@ const paginatedUsers = computed(() => {
 
 // Methods
 const sortBy = (key: keyof UserType) => {
-  if (sortKey.value === key) {
-    sortOrder.value *= -1
+  const foundIndex = sortKeys.value.findIndex((el) => el === key)
+  if (foundIndex !== -1) {
+    sortKeys.value.splice(foundIndex, 1)
+    const preValue = sortOrders.value[foundIndex]
+    sortOrders.value.splice(foundIndex, 1)
+    sortOrders.value.push(-preValue)
   } else {
-    sortOrder.value = 1
+    sortOrders.value.push(1)
   }
-  sortKey.value = key
+  sortKeys.value.push(key)
   updateQueryParams()
+}
+
+const getSortOrder = (key: keyof UserType) => {
+  const foundIndex = sortKeys.value.findIndex((el) => el === key)
+  if (foundIndex === -1) return false
+  return sortOrders.value[foundIndex]
 }
 
 const applyFilters = (newFilters: typeof filters.value) => {
@@ -111,7 +127,7 @@ const changePage = (page: number) => {
 
 // Watchers for URL state preservation
 watch(
-  [filters, sortKey, sortOrder, currentPage],
+  [filters, sortKeys, sortOrders, currentPage],
   () => {
     updateQueryParams()
   },
@@ -124,8 +140,8 @@ const updateQueryParams = () => {
   query.set('name', filters.value.name)
   query.set('phone', filters.value.phone)
   query.set('address', filters.value.address)
-  query.set('sortKey', sortKey.value)
-  query.set('sortOrder', sortOrder.value.toString())
+  // query.set('sortKey', sortKeys.value)
+  // query.set('sortOrder', sortOrder.value.toString())
   query.set('page', currentPage.value.toString())
   query.set('itemsPerPage', itemsPerPage.value.toString())
 
@@ -138,8 +154,8 @@ const loadFromQueryParams = () => {
   filters.value.name = query.get('name') || ''
   filters.value.phone = query.get('phone') || ''
   filters.value.address = query.get('address') || ''
-  sortKey.value = (query.get('sortKey') || '') as any
-  sortOrder.value = query.get('sortOrder') ? Number(query.get('sortOrder')) : 1
+  // sortKey.value = (query.get('sortKey') || '') as any
+  // sortOrder.value = query.get('sortOrder') ? Number(query.get('sortOrder')) : 1
   currentPage.value = query.get('page') ? Number(query.get('page')) : 1
   itemsPerPage.value = query.get('itemsPerPage') ? Number(query.get('itemsPerPage')) : 10
 }
