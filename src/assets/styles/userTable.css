@@ -56,7 +56,7 @@
 
 @media screen and (max-width: 768px) {
   .responsive-table thead {
-    /* display: none; */
+    display: none;
   }
 
   .responsive-table,

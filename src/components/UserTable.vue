@@ -1,6 +1,7 @@
 <template>
   <div class="table-container">
-    <Filters :filters="filters" @applyFilters="applyFilters" />
+    <Filters :filters="filters" :searchType="searchType" @applyFilters="applyFilters" />
+    <TableItemsPerPage @changeItemsPerPage="changeItemsPerPage" :itemsPerPage="itemsPerPage" />
     <table class="responsive-table">
       <thead>
         <tr>
@@ -34,12 +35,19 @@
 <script lang="ts" setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import Filters from './TableFilters.vue'
+import TableItemsPerPage from './TableItemsPerPage.vue'
 import TableRow from './TableRow.vue'
 import Pagination from './TablePagination.vue'
 import AscSortIcon from './icons/AscSortIcon.vue'
 import DescSortIcon from './icons/DescSortIcon.vue'
 import type { UserType } from '@/@types/UserTypes'
 
+enum SearchTypeEnum {
+  CASE_SENSITIVE = 'caseSensitive',
+  PARTIAL_MATCH = 'partialMatch',
+  REGEX = 'regex',
+  NONE = 'none'
+}
 // Data and state
 const users = ref<UserType[]>([]) // Populate this with your data
 const filters = ref({
@@ -47,10 +55,9 @@ const filters = ref({
   phone: '',
   address: ''
 })
-// const sortKey = ref<keyof UserType | ''>('')
-// const sortOrder = ref<number>(1) // 1 for ascending, -1 for descending
+const searchType = ref<SearchTypeEnum>(SearchTypeEnum.NONE)
 const currentPage = ref<number>(1)
-const itemsPerPage = ref<number>(10)
+const itemsPerPage = ref<number>(9)
 const sortKeys = ref<(keyof UserType)[]>([])
 const sortOrders = ref<number[]>([]) // 1 for ascending, -1 for descending
 
@@ -65,13 +72,51 @@ const fetchUserData = async () => {
 
 // Computed properties
 const filteredUsers = computed(() => {
-  return users.value.filter((user) => {
-    return (
-      user.name.toLowerCase().includes(filters.value.name.toLowerCase()) &&
-      user.phone.includes(filters.value.phone) &&
-      user.address.toLowerCase().includes(filters.value.address.toLowerCase())
-    )
-  })
+  switch (searchType.value) {
+    case SearchTypeEnum.CASE_SENSITIVE:
+      return users.value.filter((user) => {
+        return (
+          user.name.includes(filters.value.name) &&
+          user.phone.includes(filters.value.phone) &&
+          user.address.toLowerCase().includes(filters.value.address.toLowerCase())
+        )
+      })
+    case SearchTypeEnum.PARTIAL_MATCH:
+      return users.value.filter((user) => {
+        return (
+          user.name.toLowerCase().includes(filters.value.name.toLowerCase()) &&
+          user.phone.includes(filters.value.phone) &&
+          user.address.toLowerCase().includes(filters.value.address.toLowerCase())
+        )
+      })
+    case SearchTypeEnum.REGEX:
+      try {
+        const regex = new RegExp(filters.value.name)
+        return users.value.filter((user) => {
+          return (
+            regex.test(user.name) &&
+            user.phone.includes(filters.value.phone) &&
+            user.address.toLowerCase().includes(filters.value.address.toLowerCase())
+          )
+        })
+      } catch (e) {
+        return users.value.filter((user) => {
+          return (
+            user.name.toLowerCase() === filters.value.name.toLowerCase() &&
+            user.phone.includes(filters.value.phone) &&
+            user.address.toLowerCase().includes(filters.value.address.toLowerCase())
+          )
+        })
+      }
+    default:
+      return users.value.filter((user) => {
+        return (
+          (user.name.toLowerCase() === filters.value.name.toLowerCase() || !filters.value.name) &&
+          user.phone.includes(filters.value.phone) &&
+          user.address.toLowerCase().includes(filters.value.address.toLowerCase())
+        )
+      })
+  }
 })
 
 const sortedUsers = computed(() => {
@@ -114,8 +159,15 @@ const getSortOrder = (key: keyof UserType) => {
   return sortOrders.value[foundIndex]
 }
 
-const applyFilters = (newFilters: typeof filters.value) => {
+const applyFilters = (newFilters: typeof filters.value, newSearchType: typeof searchType.value) => {
   filters.value = newFilters
+  searchType.value = newSearchType
+  currentPage.value = 1
+  updateQueryParams()
+}
+
+const changeItemsPerPage = (value: number) => {
+  itemsPerPage.value = value
   currentPage.value = 1
   updateQueryParams()
 }
@@ -140,8 +192,13 @@ const updateQueryParams = () => {
   query.set('name', filters.value.name)
   query.set('phone', filters.value.phone)
   query.set('address', filters.value.address)
-  // query.set('sortKey', sortKeys.value)
-  // query.set('sortOrder', sortOrder.value.toString())
+  // if (sortKeys.value.length) {
+  //   for (let i = 0; i < sortKeys.value.length; i++) {
+  //     if (sortOrders.value[i]) {
+  //       query.set(`${sortKeys.value[i]}Sort`, sortOrders.value[i].toString())
+  //     }
+  //   }
+  // }
   query.set('page', currentPage.value.toString())
   query.set('itemsPerPage', itemsPerPage.value.toString())
 
@@ -154,6 +211,21 @@ const loadFromQueryParams = () => {
   filters.value.name = query.get('name') || ''
   filters.value.phone = query.get('phone') || ''
   filters.value.address = query.get('address') || ''
+  // query.forEach((value, key) => {
+  //   // Check if the key ends with 'sort'
+  //   if (key.endsWith('Sort')) {
+  //     const foundIndex = sortKeys.value.findIndex((el) => el === key)
+  //     if (foundIndex !== -1) {
+  //       sortKeys.value.splice(foundIndex, 1)
+  //       const preValue = sortOrders.value[foundIndex]
+  //       sortOrders.value.splice(foundIndex, 1)
+  //       sortOrders.value.push(-preValue)
+  //     } else {
+  //       sortOrders.value.push(1)
+  //     }
+  //     sortKeys.value.push(key as any)
+  //   }
+  // })
   // sortKey.value = (query.get('sortKey') || '') as any
   // sortOrder.value = query.get('sortOrder') ? Number(query.get('sortOrder')) : 1
   currentPage.value = query.get('page') ? Number(query.get('page')) : 1
