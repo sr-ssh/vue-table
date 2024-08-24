@@ -48,8 +48,8 @@ enum SearchTypeEnum {
   REGEX = 'regex',
   NONE = 'none'
 }
-// Data and state
-const users = ref<UserType[]>([]) // Populate this with your data
+
+const users = ref<UserType[]>([])
 const filters = ref({
   name: '',
   phone: '',
@@ -70,7 +70,6 @@ const fetchUserData = async () => {
   }
 }
 
-// Computed properties
 const filteredUsers = computed(() => {
   switch (searchType.value) {
     case SearchTypeEnum.CASE_SENSITIVE:
@@ -177,7 +176,6 @@ const changePage = (page: number) => {
   updateQueryParams()
 }
 
-// Watchers for URL state preservation
 watch(
   [filters, sortKeys, sortOrders, currentPage],
   () => {
@@ -186,7 +184,6 @@ watch(
   { deep: true }
 )
 
-// Functions for URL state management
 const updateQueryParams = () => {
   const query = new URLSearchParams(window.location.search)
   query.set('name', filters.value.name)
@@ -232,7 +229,6 @@ const loadFromQueryParams = () => {
   itemsPerPage.value = query.get('itemsPerPage') ? Number(query.get('itemsPerPage')) : 10
 }
 
-// Load state from URL on mount
 onMounted(() => {
   loadFromQueryParams()
   fetchUserData()
